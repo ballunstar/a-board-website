@@ -2,12 +2,16 @@ import _ from 'lodash'
 import APIConfig from '@/configs/APIConfig'
 import CoreAPIRequest from '../CoreAPIRequest'
 import { HTTPMethod } from '@/common/enum/http-method'
+import { PostAPIRequestBody } from './CreatePostAPIRequest'
 
-class GetPostDetailAPIRequest extends CoreAPIRequest {
-  method: HTTPMethod = HTTPMethod.GET
+class EditPostAPIRequest extends CoreAPIRequest {
+  method: HTTPMethod = HTTPMethod.PUT
   url: string = `${APIConfig.coreAPI}/posts/:postId`
 
-  constructor(postId: string) {
+  constructor(
+    postId: string,
+    private readonly body: PostAPIRequestBody
+  ) {
     super()
     this.url = this.url.replace(':postId', postId)
   }
@@ -17,8 +21,10 @@ class GetPostDetailAPIRequest extends CoreAPIRequest {
   }
 
   makeBody() {
-    return {}
+    return {
+      ...this.body
+    }
   }
 }
 
-export default GetPostDetailAPIRequest
+export default EditPostAPIRequest

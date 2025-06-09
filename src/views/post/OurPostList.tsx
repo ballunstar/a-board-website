@@ -3,23 +3,33 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Avatar,
+  Box,
   Button,
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
+  IconButton,
   InputAdornment,
   MenuItem,
   Select,
   TextField,
   Typography
 } from '@mui/material'
+import EditIcon from '@mui/icons-material/Edit'
+import DeleteIcon from '@mui/icons-material/Delete'
 import SearchIcon from '@mui/icons-material/Search'
-import { getOurPosts } from '@/services/api/function/post'
+import { createPost, deletePost, getOurPosts, getPosts, updatePost } from '@/services/api/function/post'
 import { usePostStore } from '@/store/zustand/post'
 import { navigateToUrl } from '@/common/utilities/navigation'
 import { ROUTES } from '@/common/utilities/routes'
 import { debounce } from 'lodash'
+import EditPostDialog from './EditPostDialog'
+import Post from '@/common/models/post'
 
 const categories = ['All', 'History', 'Food', 'Pets', 'Health', 'Fashion', 'Exercise', 'Others']
 
@@ -30,6 +40,9 @@ const OurPostList = () => {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [isFetching, setIsFetching] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [editingPost, setEditingPost] = useState<Post | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const pageSize = 10
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -88,8 +101,15 @@ const OurPostList = () => {
     return () => container.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return
+    await deletePost(deleteTarget) // <- call your API
+    setDeleteTarget(null)
+    await fetchPosts(1, true) // refresh list
+  }
+
   return (
-    <div className='space-y-6 h-screen overflow-hidden flex flex-col'>
+    <div className='space-y-6 h-screen overflow-hidden flex flex-col p-4'>
       {/* Top Toolbar */}
       <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 pt-4'>
         <TextField
@@ -144,7 +164,7 @@ const OurPostList = () => {
           </Select>
 
           <Button
-            onClick={() => navigateToUrl(ROUTES.POST_CREATE())}
+            onClick={() => setDialogOpen(true)}
             variant='contained'
             size='medium'
             sx={{
@@ -171,44 +191,119 @@ const OurPostList = () => {
             style={{ maxHeight: 'calc(100vh - 110px)' }}
           >
             {posts.map((post, index) => (
-              <div
-                key={post.id}
-                className='cursor-pointer transition-colors'
-                onClick={() => navigateToUrl(ROUTES.POST_DETAIL(post.id))}
-              >
-                <div className='p-4 space-y-2 gap-2 flex flex-col'>
-                  <div className='flex items-center gap-3 mb-1'>
-                    <Avatar
-                      src={post.author?.avatarUrl || '/images/default-avatar.png'}
-                      alt={post.author?.email}
-                      sx={{ width: 32, height: 32 }}
-                    />
-                    <Typography variant='body2' className='text-[#243831] font-medium'>
-                      {post.author?.fullName || post.author?.email}
-                    </Typography>
-                  </div>
+              <div key={post.id} className='transition-colors'>
+                <Box
+                  className='p-4 bg-white rounded-xl'
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1
+                  }}
+                >
+                  {/* Top Row: Avatar, Name, Actions */}
+                  <Box display='flex' justifyContent='space-between' alignItems='center'>
+                    {/* Left: Avatar + Name */}
+                    <Box display='flex' alignItems='center' gap={1}>
+                      <Avatar
+                        src={post.author?.avatarUrl || '/images/default-avatar.png'}
+                        alt={post.author?.email}
+                        sx={{ width: 32, height: 32 }}
+                      />
+                      <Typography variant='body2' sx={{ fontWeight: 500, color: '#888' }}>
+                        {post.author?.fullName || post.author?.email}
+                      </Typography>
+                    </Box>
+
+                    {/* Action icons */}
+                    <Box display='flex' gap={1}>
+                      <IconButton
+                        size='small'
+                        onClick={() => {
+                          setEditingPost(post)
+                          setDialogOpen(true)
+                        }}
+                      >
+                        <EditIcon sx={{ fontSize: 18, color: '#1D3B2F' }} />
+                      </IconButton>
+                      <IconButton size='small' onClick={() => setDeleteTarget(post.id)}>
+                        <DeleteIcon sx={{ fontSize: 18, color: '#1D3B2F' }} />
+                      </IconButton>
+                    </Box>
+                  </Box>
+
+                  {/* Category */}
                   <Chip
                     label={post.category}
                     size='small'
-                    className='mb-1 w-fit'
-                    sx={{ backgroundColor: '#eee', color: '#243831' }}
+                    sx={{ backgroundColor: '#eee', color: '#243831', width: 'fit-content' }}
                   />
+
+                  {/* Title */}
                   <Typography variant='subtitle1' fontWeight='bold' className='text-[#243831]'>
                     {post.title}
                   </Typography>
-                  <Typography variant='body2' className='text-[#243831] mt-1'>
+
+                  {/* Content */}
+                  <Typography
+                    variant='body2'
+                    className='text-[#243831]'
+                    sx={{
+                      display: '-webkit-box',
+                      WebkitBoxOrient: 'vertical',
+                      WebkitLineClamp: 2,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}
+                  >
                     {post.content}
                   </Typography>
-                  <Typography variant='caption' color='text.secondary' className='mt-2 block'>
-                    💬 {post.commentCount || 0} Comments
+
+                  {/* Comment Count */}
+                  <Typography variant='caption' color='text.secondary'>
+                    💬 {post.commentCount || 0} Comment{post.commentCount === 1 ? '' : 's'}
                   </Typography>
-                </div>
-                {index !== posts.length - 1 && <Divider className='mt-4' />}
+                </Box>
+
+                {index !== posts.length - 1 && <Divider className='my-4' />}
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
+      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
+        <DialogTitle sx={{ fontWeight: 600, textAlign: 'center' }}>
+          Please confirm if you wish to delete the post
+        </DialogTitle>
+        <DialogContent sx={{ textAlign: 'center' }}>
+          Are you sure you want to delete the post?
+          <br />
+          <Typography color='text.secondary' fontSize={14}>
+            Once deleted, it cannot be recovered.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ flexDirection: 'column', gap: 1, px: 3, pb: 3 }}>
+          <Button fullWidth variant='contained' color='error' onClick={handleDelete} sx={{ fontWeight: 600 }}>
+            Delete
+          </Button>
+          <Button fullWidth variant='outlined' onClick={() => setDeleteTarget(null)} sx={{ fontWeight: 600 }}>
+            Cancel
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <EditPostDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        post={editingPost} // pass `undefined` to create
+        onSubmit={async data => {
+          if (editingPost) {
+            await updatePost(editingPost.id, data)
+          } else {
+            await createPost(data)
+          }
+          setDialogOpen(false)
+          await fetchPosts()
+        }}
+      />
     </div>
   )
 }

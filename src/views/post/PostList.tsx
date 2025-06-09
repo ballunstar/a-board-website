@@ -15,11 +15,12 @@ import {
   Typography
 } from '@mui/material'
 import SearchIcon from '@mui/icons-material/Search'
-import { getPosts } from '@/services/api/function/post'
+import { createPost, getPosts } from '@/services/api/function/post'
 import { usePostStore } from '@/store/zustand/post'
 import { navigateToUrl } from '@/common/utilities/navigation'
 import { ROUTES } from '@/common/utilities/routes'
 import { debounce } from 'lodash'
+import EditPostDialog from './EditPostDialog'
 
 const categories = ['All', 'History', 'Food', 'Pets', 'Health', 'Fashion', 'Exercise', 'Others']
 
@@ -30,6 +31,7 @@ const PostList = () => {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [isFetching, setIsFetching] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const pageSize = 10
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -144,7 +146,7 @@ const PostList = () => {
           </Select>
 
           <Button
-            onClick={() => navigateToUrl(ROUTES.POST_CREATE())}
+            onClick={() => setDialogOpen(true)}
             variant='contained'
             size='medium'
             sx={{
@@ -209,6 +211,15 @@ const PostList = () => {
           </div>
         </CardContent>
       </Card>
+      <EditPostDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSubmit={async data => {
+          await createPost(data)
+          setDialogOpen(false)
+          await fetchPosts()
+        }}
+      />
     </div>
   )
 }
